@@ -1,69 +1,74 @@
-import os
+import pandas as pd
 from google import genai
-from dotenv import load_dotenv
+import os
 
-load_dotenv()
+# Initialize Gemini Client
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-class GeminiBIAgent:
-    def __init__(self):
-        api_key = os.getenv("GEMINI_API_KEY")
-        if api_key:
-            self.client = genai.Client(api_key=api_key)
-        else:
-            self.client = None
-
-    def explain_root_cause(self, dataset_summary_str, issues_list):
-        """Generates a natural language executive summary & root-cause analysis."""
-        if not self.client:
-            return "⚠️ Gemini API Key not found in .env. Showing standard summary."
-
-        prompt = f"""
-        You are an expert AI Data Auditor and Business Intelligence Agent.
-        Analyze the following dataset context and detected anomalies, then provide a concise executive root-cause analysis.
-
-        DATASET CONTEXT SUMMARY:
-        {dataset_summary_str}
-
-        DETECTED ANOMALIES & ISSUES:
-        {issues_list}
-
-        Your output should include:
-        1. Executive Narrative (2-3 sentences explaining what went wrong and potential root cause).
-        2. Actionable Business Recommendation.
+def ask_data_agent(df: pd.DataFrame, user_query: str) -> str:
+    """
+    User ke natural language query se Pandas python code generate karke
+    dataframe par execute karta hai aur accurate math/analysis answer deta hai.
+    """
+    try:
+        # Dataframe schema aur column types extract karo
+        schema_info = f"""
+        Columns: {list(df.columns)}
+        Data Types:
+        {df.dtypes.to_string()}
+        Data Sample (head 3):
+        {df.head(3).to_dict(orient='records')}
         """
 
-        try:
-            # Updated model name here
-            response = self.client.models.generate_content(
-                model='gemini-3.8-flash',
-                contents=prompt,
-            )
-            return response.text
-        except Exception as e:
-            return f"Error generating AI narrative: {str(e)}"
-
-    def evaluate_custom_rule(self, df_sample_str, user_query):
-        """Interprets natural language custom audit rules from user."""
-        if not self.client:
-            return "API Key missing."
-
+        # System prompt Gemini ko Pandas code generator banane ke liye
         prompt = f"""
-        Given the following pandas dataframe preview:
-        {df_sample_str}
+        You are an expert Python Data Analyst.
+        You are given a Pandas DataFrame named `df`.
+        
+        DataFrame Info:
+        {schema_info}
 
-        User Request / Custom Rule: "{user_query}"
+        User Question: "{user_query}"
 
-        Convert this custom audit request into a clear logical condition or explanation.
-        State which columns need to be checked and what threshold or value indicates an anomaly/issue.
-        Keep the response brief (max 3 sentences).
+        Task:
+        1. Write ONLY the executable Python code using `df` to calculate or find the exact answer to the user's question.
+        2. Assign the final answer or output string to a variable named `result`.
+        3. Do NOT include markdown code blocks (like ```python), explanations, or extra text. Output strictly raw executable Python code only.
+
+        Example 1:
+        User: "Employee table me kitne employees hain?"
+        Code:
+        result = f"Total employees: {{len(df)}}"
+
+        Example 2:
+        User: "Unki sabki salary ki Total batao and null kahan hai?"
+        Code:
+        total_sal = df['Salary'].sum() if 'Salary' in df.columns else 'N/A'
+        null_counts = df.isnull().sum().to_dict()
+        result = f"Total Salary: {{total_sal}}\\nNull values per column: {{null_counts}}"
         """
 
-        try:
-            # Updated model name here
-            response = self.client.models.generate_content(
-                model='gemini-3.8-flash',
-                contents=prompt,
-            )
-            return response.text
-        except Exception as e:
-            return f"Error executing AI rule: {str(e)}"
+        # Gemini se Pandas Code Generate karwao
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+        )
+
+        code_to_exec = response.text.strip().replace("```python", "").replace("```", "").strip()
+
+        # Code ko safely local scope mein execute karo
+        local_vars = {'df': df, 'pd': pd}
+        exec(code_to_exec, {}, local_vars)
+
+        # Execution ka output return karo
+        output = local_vars.get('result', 'Code executed, but no `result` variable was set.')
+        return str(output)
+
+    except Exception as e:
+        # Fallback: Agar code execution fail ho, toh direct LLM text analysis use karo
+        fallback_prompt = f"Data Summary:\n{df.describe(include='all').to_string()}\n\nQuestion: {user_query}\nAnswer directly based on data:"
+        res = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=fallback_prompt
+        )
+        return res.text

@@ -1,220 +1,177 @@
-import io
-import xml.etree.ElementTree as ET
+import os
+import streamlit as st
 import pandas as pd
 import plotly.express as px
-import streamlit as st
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+from dotenv import load_dotenv
 
-from advanced_monitor import AdvancedBusinessMonitor
-from real_emailer import EmailAlertSystem
-from ai_agent import GeminiBIAgent
+# Local modules import
+from ai_agent import ask_data_agent, generate_audit_narrative
+from advanced_monitor import detect_anomalies
+from logger_alert import log_alert
+from real_emailer import send_alert_email
 
-# Page Configuration
+# Load environment variables
+load_dotenv()
+
+# Streamlit Page Config
 st.set_page_config(
-    page_title="AI Business Health & Generative BI Dashboard", page_icon="🤖", layout="wide"
+    page_title="AI Business Intelligence & Audit Agent",
+    page_icon="📊",
+    layout="wide"
 )
 
-# Helper Function: Parse XML File to Pandas DataFrame
-def load_xml_data(uploaded_file):
-    tree = ET.parse(uploaded_file)
-    root = tree.getroot()
+st.title("📊 AI Business Intelligence & Anomaly Detection Agent")
+st.markdown("Automated multi-format data auditing, statistical anomaly detection, and interactive AI analytics.")
 
-    all_records = []
-    for child in root:
-        record = {}
-        for subchild in child:
-            val = subchild.text
-            if val is not None:
-                try:
-                    if "." in val:
-                        val = float(val)
-                    else:
-                        val = int(val)
-                except ValueError:
-                    pass
-            record[subchild.tag] = val
-        all_records.append(record)
+# ---------------------------------------------------------
+# Sidebar: File Upload & Controls
+# ---------------------------------------------------------
+st.sidebar.header("📁 Data Source & Settings")
+uploaded_file = st.sidebar.file_uploader(
+    "Upload Business Data (CSV, XLSX, XML)", 
+    type=["csv", "xlsx", "xml"]
+)
 
-    return pd.DataFrame(all_records)
+# Email Notification Settings
+st.sidebar.subheader("📧 Email Alert Settings")
+enable_email = st.sidebar.checkbox("Enable Automated Email Alerts", value=False)
+recipient_email = st.sidebar.text_input("Recipient Email", value="")
 
-# Helper Function: Generate PDF Audit Report in Memory
-def create_pdf_report(filename, issues, narrative):
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
-    styles = getSampleStyleSheet()
-    story = []
-
-    # Document Header
-    story.append(Paragraph(f"<b>Executive Audit Report: {filename}</b>", styles["Title"]))
-    story.append(Spacer(1, 12))
-
-    # Narrative Summary Section
-    story.append(Paragraph("<b>AI Root-Cause Executive Summary:</b>", styles["Heading2"]))
-    story.append(Paragraph(narrative, styles["BodyText"]))
-    story.append(Spacer(1, 14))
-
-    # Detailed Issue Log Section
-    story.append(Paragraph("<b>Detailed System Issue Log:</b>", styles["Heading2"]))
-    if issues:
-        for idx, issue in enumerate(issues, 1):
-            text = f"<b>{idx}. [{issue['type']}] {issue['issue']}</b>: {issue['detail']}"
-            story.append(Paragraph(text, styles["BodyText"]))
-            story.append(Spacer(1, 6))
+# ---------------------------------------------------------
+# Data Loader Function
+# ---------------------------------------------------------
+@st.cache_data
+def load_data(file):
+    file_extension = file.name.split(".")[-1].lower()
+    if file_extension == "csv":
+        return pd.read_csv(file)
+    elif file_extension == "xlsx":
+        return pd.read_excel(file)
+    elif file_extension == "xml":
+        return pd.read_xml(file)
     else:
-        story.append(Paragraph("No anomalies or data integrity issues detected.", styles["BodyText"]))
+        raise ValueError("Unsupported file format")
 
-    doc.build(story)
-    buffer.seek(0)
-    return buffer
-
-# Title Header
-st.title("🤖 Generative AI Business Health & Anomaly Agent")
-st.markdown("Multi-format file ingestion (**CSV**, **XML**, **Excel**) powered by **Google Gemini AI** for root-cause analysis and natural language custom rule checks.")
-
-# Sidebar - Configuration
-st.sidebar.header("⚙️ Audit Configuration")
-baseline_window = st.sidebar.slider("Baseline Window (Days)", 3, 14, 7)
-threshold_pct = st.sidebar.slider("Metric Anomaly Sensitivity (%)", 5, 50, 15) / 100.0
-recipient_email = st.sidebar.text_input("Alert Recipient Email", "manager@company.com")
-
-# Initialize AI Agent
-ai_agent = GeminiBIAgent()
-
-# File Uploader
-uploaded_file = st.file_uploader(
-    "Upload Data File",
-    type=["csv", "xml", "xlsx", "xls"],
-    help="Support formats: .csv, .xml, .xlsx, .xls",
-)
-
+# Default / Fallback Data loading if no file uploaded
 if uploaded_file is not None:
-    filename = uploaded_file.name.lower()
-
-    # Load Data
     try:
-        if filename.endswith(".csv"):
-            df = pd.read_csv(uploaded_file)
-        elif filename.endswith(".xml"):
-            df = load_xml_data(uploaded_file)
-        elif filename.endswith(".xlsx") or filename.endswith(".xls"):
-            df = pd.read_excel(uploaded_file)
+        df = load_data(uploaded_file)
+        st.sidebar.success(f"Successfully loaded {uploaded_file.name}")
+    except Exception as e:
+        st.error(f"Error reading file: {e}")
+        st.stop()
+else:
+    # Sample fallback data for immediate UI demo
+    sample_data_path = os.path.join("data", "business_metrics.csv")
+    if os.path.exists(sample_data_path):
+        df = pd.read_csv(sample_data_path)
+        st.info("Using sample dataset (`data/business_metrics.csv`). Upload your file from the sidebar to audit custom data.")
+    else:
+        st.warning("Please upload a CSV, Excel, or XML file to begin.")
+        st.stop()
 
-        st.success(f"Successfully loaded **{uploaded_file.name}** ({len(df)} total rows).")
+# ---------------------------------------------------------
+# Tab Layout Setup
+# ---------------------------------------------------------
+tab1, tab2, tab3 = st.tabs(["📊 Data Overview & Anomalies", "💬 Ask AI Data Analyst", "📝 Executive Audit Report"])
 
-        # Raw Data Display Tab
-        with st.expander("📄 View Uploaded Raw Data"):
-            st.dataframe(df)
+# =========================================================
+# TAB 1: Data Overview & Anomaly Detection
+# =========================================================
+with tab1:
+    st.subheader("Data Preview")
+    st.dataframe(df.head(10), use_container_width=True)
 
-        # -------------------------------------------------------------
-        # FEATURE 1: Natural Language Custom Audit Rule (Gemini Powered)
-        # -------------------------------------------------------------
-        st.markdown("---")
-        st.subheader("💬 Ask AI Agent / Custom Rule Prompt")
-        user_custom_rule = st.text_input(
-            "Type a custom check in natural language:",
-            placeholder="e.g., Flag any transaction amount over 50000 or check if West region has lower revenue",
-        )
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Rows", df.shape[0])
+    col2.metric("Total Columns", df.shape[1])
+    col3.metric("Missing Values", df.isnull().sum().sum())
 
-        if user_custom_rule:
-            with st.spinner("🤖 Gemini AI is evaluating your custom prompt..."):
-                sample_str = df.head(5).to_string()
-                ai_rule_response = ai_agent.evaluate_custom_rule(sample_str, user_custom_rule)
-                st.info(f"🧠 **AI Prompt Interpretation:**\n\n{ai_rule_response}")
+    st.markdown("---")
+    st.subheader("🔍 Statistical Anomaly Detection")
 
-        # -------------------------------------------------------------
-        # FEATURE 2: Statistical Anomaly Detection Engine
-        # -------------------------------------------------------------
-        numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
-        metric_cols = [c for c in numeric_cols if c in ["Revenue", "Sales", "Amount"]]
-        if not metric_cols and len(numeric_cols) > 0:
-            metric_cols = [numeric_cols[0]]
+    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
 
-        monitor = AdvancedBusinessMonitor(
-            df,
-            baseline_window=baseline_window,
-            threshold_pct=threshold_pct,
-        )
-        detected_issues = monitor.run_all_checks(
-            numeric_cols=numeric_cols, metric_cols=metric_cols
-        )
+    if numeric_cols:
+        selected_col = st.selectbox("Select Numeric Metric for Anomaly Detection", numeric_cols)
+        z_threshold = st.slider("Z-Score Threshold", min_value=1.5, max_value=4.0, value=2.5, step=0.1)
 
-        st.markdown("---")
-        st.subheader("🔍 Automated Audit & AI Root-Cause Analysis")
+        anomalies_df = detect_anomalies(df, column=selected_col, threshold=z_threshold)
 
-        # Dynamic AI Root-Cause Narrative
-        dataset_summary = f"Columns: {list(df.columns)}, Total Rows: {len(df)}"
-        if detected_issues:
-            with st.spinner("🤖 Generating AI Root-Cause Analysis using Gemini..."):
-                narrative = ai_agent.explain_root_cause(dataset_summary, detected_issues)
-        else:
-            narrative = "All automated checks passed smoothly! Data integrity is intact with no statistical anomalies detected."
+        if not anomalies_df.empty:
+            st.error(f"⚠️ Detected {len(anomalies_df)} anomalies in `{selected_col}`!")
+            st.dataframe(anomalies_df, use_container_width=True)
 
-        # Display AI Narrative Card
-        st.info(f"💡 **AI Executive Root-Cause Summary:**\n\n{narrative}")
-
-        if detected_issues:
-            st.warning(f"**{len(detected_issues)} System Issue(s) / Anomalies Detected!**")
-
-            # Display Issues in Cards
-            for issue in detected_issues:
-                st.error(f"**[{issue['type']}] {issue['issue']}** — {issue['detail']}")
-
-            st.markdown("---")
-
-            # Generate PDF in Memory
-            pdf_data = create_pdf_report(uploaded_file.name, detected_issues, narrative)
-
-            col1, col2, col3 = st.columns([2, 1, 1])
-
-            with col1:
-                st.info(f"Send automated anomaly summary to: **{recipient_email}**")
-
-            # Action Button 1: Live Email with Attached PDF
-            with col2:
-                if st.button("📧 Send Email Alert", type="primary"):
-                    emailer = EmailAlertSystem()
-                    sent = emailer.send_alert_email(
-                        recipient_email,
-                        detected_issues,
-                        uploaded_file.name,
-                        pdf_buffer=pdf_data,
-                    )
-                    if sent:
-                        st.success("Alert email with PDF report dispatched successfully!")
-                    else:
-                        st.error("Failed to send email. Check .env credentials.")
-
-            # Action Button 2: Direct PDF Download
-            with col3:
-                st.download_button(
-                    label="📄 Download PDF Report",
-                    data=pdf_data,
-                    file_name=f"Audit_Report_{uploaded_file.name}.pdf",
-                    mime="application/pdf",
-                )
-
-        else:
-            st.success("✅ All system checks passed!")
-
-        # Interactive Visualization
-        if "Date" in df.columns and len(numeric_cols) > 0:
-            st.markdown("---")
-            st.subheader("📈 Interactive Metric Trend Visualizer")
-            selected_col = st.selectbox("Select Metric to Plot", numeric_cols)
-
-            fig = px.line(
-                df,
-                x="Date",
-                y=selected_col,
-                title=f"{selected_col} Behavior Over Time",
-                markers=True,
+            # Plotly Visualization
+            fig = px.scatter(
+                df, 
+                x=df.index, 
+                y=selected_col, 
+                title=f"{selected_col} Distribution & Outliers"
+            )
+            fig.add_scatter(
+                x=anomalies_df.index, 
+                y=anomalies_df[selected_col], 
+                mode='markers', 
+                marker=dict(color='red', size=10, symbol='x'),
+                name='Anomaly'
             )
             st.plotly_chart(fig, use_container_width=True)
 
-    except Exception as e:
-        st.error(f"Error processing file: {str(e)}")
+            # Trigger Email Alert if enabled
+            if enable_email and recipient_email:
+                if st.button("Send Anomaly Alert Email"):
+                    alert_msg = f"Detected {len(anomalies_df)} anomalies in column '{selected_col}' exceeding Z-score threshold of {z_threshold}."
+                    email_sent = send_alert_email(recipient_email, "AI BI Agent Alert: Anomalies Detected", alert_msg)
+                    if email_sent:
+                        log_alert(f"Email alert sent to {recipient_email} for {selected_col}")
+                        st.success(f"Alert email sent to {recipient_email}")
+                    else:
+                        st.error("Failed to send email. Check SMTP credentials in Streamlit Secrets.")
+        else:
+            st.success(f"No statistical anomalies found in `{selected_col}` with threshold {z_threshold}.")
+    else:
+        st.warning("No numeric columns found in the dataset for anomaly detection.")
 
-else:
-    st.info("👆 Please upload a CSV, XML, or Excel file to start the automated audit.")
+# =========================================================
+# TAB 2: Interactive AI Data Analyst Chat (Code Execution Agent)
+# =========================================================
+with tab2:
+    st.subheader("💬 Natural Language Data Queries")
+    st.markdown("""
+    Poochho apne dataset se jude koi bhi sawal — jaise **totals, null counts, averages, specific employee calculations, ya anomalies ka reason**!
+    AI backend par directly **Pandas Python code execute** karke 100% accurate results dega.
+    """)
+
+    # Quick prompt suggestions
+    st.markdown("**Example Questions:**")
+    example_col1, example_col2, example_col3 = st.columns(3)
+    if example_col1.button("Kahan par null values hain?"):
+        st.session_state["user_q"] = "Konsi columns mein kitni null ya missing values hain?"
+    if example_col2.button("Summary metrics batao"):
+        st.session_state["user_q"] = "Har numeric column ka average aur total sum calculate karke batao."
+    if example_col3.button("Outliers / Key Findings"):
+        st.session_state["user_q"] = "Dataset mein sabse high aur low values waale records search karo."
+
+    default_q = st.session_state.get("user_q", "")
+    user_query = st.text_input("Enter your question about the dataset:", value=default_q)
+
+    if st.button("Analyze Data", type="primary"):
+        if user_query.strip():
+            with st.spinner("AI Pandas Code execute kar raha hai..."):
+                agent_response = ask_data_agent(df, user_query)
+                st.markdown("### 🤖 AI Response:")
+                st.info(agent_response)
+        else:
+            st.warning("Kripya pehle koi sawal enter karein.")
+
+# =========================================================
+# TAB 3: Executive Narrative Audit Report
+# =========================================================
+with tab3:
+    st.subheader("📝 Executive Summary & Root-Cause Audit")
+    
+    if st.button("Generate Executive Audit Narrative"):
+        with st.spinner("Gemini AI audit report compile kar raha hai..."):
+            narrative = generate_audit_narrative(df)
+            st.markdown(narrative)
