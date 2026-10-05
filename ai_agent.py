@@ -1,56 +1,48 @@
 import os
 import time
-import pandas as pd
-from dotenv import load_dotenv
 from google import genai
+from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
-api_key = os.getenv("GEMINI_API_KEY")
-if not api_key:
-    raise ValueError("GEMINI_API_KEY missing hai! Local .env file check karein.")
-
-client = genai.Client(api_key=api_key)
-
-def ask_data_agent(df: pd.DataFrame, user_query: str) -> str:
-    schema_info = f"""
-    Columns: {list(df.columns)}
-    Data Types: {df.dtypes.to_string()}
-    Data Sample (head 3): {df.head(3).to_dict(orient='records')}
-    """
-
-    prompt = f"""
-    You are an expert Python Data Analyst.
-    Given Pandas DataFrame `df`:
-    {schema_info}
-
-    User Question: "{user_query}"
-
-    Task:
-    1. Write ONLY executable Python code using `df` to answer the question.
-    2. Store output string in variable `result`.
-    3. Do NOT include markdown blocks like ```python. Strictly raw code.
-    """
-
-    # 3 Times Auto-Retry Logic for 503 Server Overload
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            response = client.models.generate_content(
-                model='gemini-3.8-flash',
-                contents=prompt,
-            )
-
-            code_to_exec = response.text.strip().replace("```python", "").replace("```", "").strip()
-
-            local_vars = {'df': df, 'pd': pd}
-            exec(code_to_exec, {}, local_vars)
-
-            return str(local_vars.get('result', 'Code executed without result output.'))
-
-        except Exception as e:
-            if "503" in str(e) or "UNAVAILABLE" in str(e):
-                if attempt < max_retries - 1:
-                    time.sleep(2)  # Wait 2 seconds before retry
-                    continue
-            return f"Error executing query: {str(e)}"
+def ask_gemini_analyst(df, user_query):
+    api_key = os.getenv("GEMINI_API_KEY")
+    
+    if not api_key:
+        return "❌ GEMINI_API_KEY is missing in .env file."
+        
+    try:
+        client = genai.Client(api_key=api_key)
+        
+        # Prepare context from DataFrame summary
+        dataset_summary = f"""
+        Dataset Columns: {list(df.columns)}
+        Total Rows: {len(df)}
+        Sample Data (First 5 rows):
+        {df.head(5).to_string()}
+        """
+        
+        prompt = f"You are an expert AI Data Analyst. Analyze this dataset context:\n{dataset_summary}\n\nUser Question: {user_query}"
+        
+        # Updated active model names
+        models_to_try = ['gemini-3.8-flash', 'gemini-3.5-flash-lite']
+        
+        for model_name in models_to_try:
+            for attempt in range(2):  # Try twice per model with short delay
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                    )
+                    return response.text
+                except Exception as err:
+                    if "503" in str(err) or "UNAVAILABLE" in str(err) or "404" in str(err):
+                        time.sleep(1)
+                        continue
+                    else:
+                        raise err
+                        
+        return "⚠️ Gemini servers are currently busy. Please try again in a few seconds."
+        
+    except Exception as e:
+        return f"❌ Gemini API Error: {e}"

@@ -1,116 +1,119 @@
-import io
+import os
 import pandas as pd
 from reportlab.lib.pagesizes import letter, landscape
-from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
 
-def generate_pdf_report(df: pd.DataFrame, summary_text: str = "") -> io.BytesIO():
-    buffer = io.BytesIO()
-    
-    # Page layout set to Landscape for wide data tables
+def generate_pdf_report(df: pd.DataFrame, filename: str = "Anomaly_Report.pdf") -> str:
+    """Generates a perfectly auto-fitted, clean PDF report from dataset."""
+    # Page dimensions for landscape orientation
     doc = SimpleDocTemplate(
-        buffer,
+        filename, 
         pagesize=landscape(letter),
-        rightMargin=36,
-        leftMargin=36,
-        topMargin=36,
-        bottomMargin=36
+        leftMargin=20,
+        rightMargin=20,
+        topMargin=20,
+        bottomMargin=20
     )
+    elements = []
     
-    story = []
     styles = getSampleStyleSheet()
-    
-    # Custom Styles
     title_style = ParagraphStyle(
-        'ReportTitle',
+        'TitleStyle',
         parent=styles['Title'],
-        fontSize=22,
-        leading=26,
-        textColor=colors.HexColor("#1E3A8A"),
-        alignment=1, # Center
-        spaceAfter=15
+        fontName='Helvetica-Bold',
+        fontSize=18,
+        leading=22,
+        textColor=colors.HexColor('#0F172A'),
+        alignment=1 # Center
     )
     
     body_style = ParagraphStyle(
-        'ReportBody',
+        'BodyStyle',
         parent=styles['Normal'],
+        fontName='Helvetica',
         fontSize=10,
-        leading=14,
-        textColor=colors.HexColor("#374151")
+        leading=12,
+        textColor=colors.HexColor('#334155'),
+        alignment=1
     )
     
-    table_cell_style = ParagraphStyle(
-        'TableCell',
-        parent=styles['Normal'],
-        fontSize=8,
-        leading=10,
-        wordWrap='CJK'
-    )
-    
-    table_header_style = ParagraphStyle(
-        'TableHeader',
-        parent=styles['Normal'],
-        fontSize=9,
-        leading=11,
-        textColor=colors.white,
-        fontName='Helvetica-Bold'
+    cell_style = ParagraphStyle(
+        'CellStyle',
+        fontName='Helvetica',
+        fontSize=7,
+        leading=9,
+        textColor=colors.HexColor('#1E293B'),
+        alignment=0 # Left align
     )
 
-    # 1. Title
-    story.append(Paragraph("<b>AI Business Intelligence Audit Report</b>", title_style))
-    
-    # 2. Overview / Summary
-    if not summary_text:
-        summary_text = f"Dataset contains {len(df)} rows and {len(df.columns)} columns."
-    story.append(Paragraph(f"<b>Overview:</b> {summary_text}", body_style))
-    story.append(Spacer(1, 15))
-    
-    # 3. Table Header & Data Preparation
-    story.append(Paragraph("<b>Data Sample (Top Rows):</b>", body_style))
-    story.append(Spacer(1, 8))
-    
-    # Prepare top 10 sample rows
-    sample_df = df.head(10).copy()
-    
-    # Clean datetime strings if any (removes 00:00:00)
-    for col in sample_df.columns:
-        if pd.api.types.is_datetime64_any_dtype(sample_df[col]):
-            sample_df[col] = sample_df[col].dt.strftime('%Y-%m-%d')
-        else:
-            sample_df[col] = sample_df[col].astype(str).str.replace(" 00:00:00", "")
+    header_cell_style = ParagraphStyle(
+        'HeaderCellStyle',
+        fontName='Helvetica-Bold',
+        fontSize=7,
+        leading=9,
+        textColor=colors.whitesmoke,
+        alignment=0
+    )
 
-    headers = [Paragraph(f"<b>{str(col)}</b>", table_header_style) for col in sample_df.columns]
+    # 1. Header & Title
+    elements.append(Paragraph("📊 AI Business Intelligence - Anomaly Detection Report", title_style))
+    elements.append(Spacer(1, 10))
     
-    table_data = [headers]
-    for _, row in sample_df.iterrows():
-        formatted_row = [Paragraph(str(val), table_cell_style) for val in row]
-        table_data.append(formatted_row)
+    # 2. Key Metrics Summary
+    total_rows = len(df)
+    anomaly_col = 'anomaly' if 'anomaly' in df.columns else ('Is_Anomaly' if 'Is_Anomaly' in df.columns else None)
+    anomaly_count = df[anomaly_col].sum() if anomaly_col else 0
+    
+    summary_text = f"<b>Total Records:</b> {total_rows} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Anomalies Detected:</b> <font color='#DC2626'><b>{anomaly_count}</b></font>"
+    elements.append(Paragraph(summary_text, body_style))
+    elements.append(Spacer(1, 12))
 
-    # Dynamic Column Width calculation based on available width (~720 points for landscape)
-    num_cols = len(sample_df.columns)
-    col_width = 720 / max(num_cols, 1)
+    # 3. Clean up Unnamed Columns & Limit Columns if needed
+    cleaned_df = df.copy()
+    # Filter out empty or 'Unnamed' columns for cleaner layout
+    valid_cols = [c for c in cleaned_df.columns if not str(c).startswith('Unnamed')]
+    if valid_cols:
+        cleaned_df = cleaned_df[valid_cols]
     
-    pdf_table = Table(table_data, colWidths=[col_width] * num_cols, repeatRows=1)
+    # Limit to top 10 columns for a perfect PDF wrap if dataset is ultra-wide
+    max_cols = 10
+    if len(cleaned_df.columns) > max_cols:
+        cleaned_df = cleaned_df.iloc[:, :max_cols]
     
-    # Table Styling
-    pdf_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#2563EB")),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+    # Preview top 25 rows
+    preview_df = cleaned_df.head(25).fillna("-")
+    
+    # Wrap text in Paragraphs so cells auto-wrap instead of clipping/overflowing
+    formatted_data = []
+    
+    # Headers
+    headers = [Paragraph(str(c), header_cell_style) for c in preview_df.columns]
+    formatted_data.append(headers)
+    
+    # Rows
+    for _, row in preview_df.iterrows():
+        formatted_row = [Paragraph(str(val), cell_style) for val in row.values]
+        formatted_data.append(formatted_row)
+    
+    # Calculate available table width (792 printable width - 40 margins = 752)
+    available_width = 752
+    col_count = len(preview_df.columns)
+    col_width = available_width / col_count if col_count > 0 else available_width
+
+    table = Table(formatted_data, colWidths=[col_width] * col_count)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0F172A')), # Dark slate blue header
         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
-        ('BOX', (0, 0), (-1, -1), 1, colors.HexColor("#94A3B8")),
-        ('TOPPADDING', (0, 0), (-1, -1), 5),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-        ('LEFTPADDING', (0, 0), (-1, -1), 4),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')), # Light grey border
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8FAFC')]), # Zebra striping
     ]))
     
-    story.append(pdf_table)
+    elements.append(table)
+    doc.build(elements)
     
-    # Build Document
-    doc.build(story)
-    buffer.seek(0)
-    return buffer
+    return filename

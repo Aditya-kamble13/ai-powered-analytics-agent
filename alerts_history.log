@@ -1,2 +1,32 @@
 2026-10-03 10:00:15,967 - INFO - ANOMALY DETECTED [2026-09-27] - Metrics: Revenue, Conversion_Rate
 2026-10-03 10:01:53,461 - INFO - ANOMALY DETECTED [2026-09-27] - Metrics: Revenue, Conversion_Rate, Traffic_Volume
+2026-10-04 22:03:41,026 - INFO - AFC is enabled with max remote calls: 10.
+2026-10-04 22:03:41,027 - WARNING - Direct use of automatic function calling (AFC) in Models.generate_content is not recommended. Instead, we recommend to use AFC in Chat.send_message. Similarly, direct use of AFC in Models.generate_content_stream is not recommended. Instead, we recommend to use AFC in Chat.send_message_stream.
+2026-10-04 22:03:42,206 - INFO - HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent "HTTP/1.1 404 Not Found"
+2026-10-04 22:39:39,858 - INFO - AFC is enabled with max remote calls: 10.
+2026-10-04 22:39:39,858 - WARNING - Direct use of automatic function calling (AFC) in Models.generate_content is not recommended. Instead, we recommend to use AFC in Chat.send_message. Similarly, direct use of AFC in Models.generate_content_stream is not recommended. Instead, we recommend to use AFC in Chat.send_message_stream.
+2026-10-04 22:39:40,967 - INFO - HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent "HTTP/1.1 404 Not Found"
+2026-10-04 22:48:34,300 - INFO - AFC is enabled with max remote calls: 10.
+2026-10-04 22:48:34,300 - WARNING - Direct use of automatic function calling (AFC) in Models.generate_content is not recommended. Instead, we recommend to use AFC in Chat.send_message. Similarly, direct use of AFC in Models.generate_content_stream is not recommended. Instead, we recommend to use AFC in Chat.send_message_stream.
+2026-10-04 22:48:35,296 - INFO - HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent "HTTP/1.1 404 Not Found"
+2026-10-04 22:50:06,134 - INFO - AFC is enabled with max remote calls: 10.
+2026-10-04 22:50:06,135 - WARNING - Direct use of automatic function calling (AFC) in Models.generate_content is not recommended. Instead, we recommend to use AFC in Chat.send_message. Similarly, direct use of AFC in Models.generate_content_stream is not recommended. Instead, we recommend to use AFC in Chat.send_message_stream.
+2026-10-04 22:50:07,080 - INFO - HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent "HTTP/1.1 404 Not Found"
+2026-10-04 22:51:42,001 - INFO - AFC is enabled with max remote calls: 10.
+2026-10-04 22:51:42,001 - WARNING - Direct use of automatic function calling (AFC) in Models.generate_content is not recommended. Instead, we recommend to use AFC in Chat.send_message. Similarly, direct use of AFC in Models.generate_content_stream is not recommended. Instead, we recommend to use AFC in Chat.send_message_stream.
+2026-10-04 22:51:48,710 - INFO - HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent "HTTP/1.1 200 OK"
+2026-10-04 22:51:56,541 - INFO - AFC is enabled with max remote calls: 10.
+2026-10-04 22:51:59,645 - INFO - HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent "HTTP/1.1 200 OK"
+2026-10-04 22:52:16,147 - INFO - AFC is enabled with max remote calls: 10.
+2026-10-04 22:52:20,762 - INFO - HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent "HTTP/1.1 503 Service Unavailable"
+2026-10-04 22:55:33,125 - INFO - AFC is enabled with max remote calls: 10.
+2026-10-04 22:55:33,126 - WARNING - Direct use of automatic function calling (AFC) in Models.generate_content is not recommended. Instead, we recommend to use AFC in Chat.send_message. Similarly, direct use of AFC in Models.generate_content_stream is not recommended. Instead, we recommend to use AFC in Chat.send_message_stream.
+2026-10-04 22:55:47,971 - INFO - HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent "HTTP/1.1 200 OK"
+2026-10-04 22:55:59,231 - INFO - AFC is enabled with max remote calls: 10.
+2026-10-04 22:56:07,654 - INFO - HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent "HTTP/1.1 503 Service Unavailable"
+2026-10-04 22:56:09,656 - INFO - AFC is enabled with max remote calls: 10.
+2026-10-04 22:56:13,736 - INFO - HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent "HTTP/1.1 503 Service Unavailable"
+2026-10-04 22:56:15,737 - INFO - AFC is enabled with max remote calls: 10.
+2026-10-04 22:56:32,666 - INFO - HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent "HTTP/1.1 503 Service Unavailable"
+2026-10-04 22:56:59,942 - INFO - AFC is enabled with max remote calls: 10.
+2026-10-04 22:57:25,002 - INFO - HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent "HTTP/1.1 200 OK"

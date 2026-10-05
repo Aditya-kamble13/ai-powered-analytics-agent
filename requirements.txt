@@ -1,7 +1,8 @@
 streamlit
 pandas
-plotly
+numpy
+google-genai
 reportlab
 python-dotenv
-google-genai
+scikit-learn
 openpyxl
